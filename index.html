@@ -283,17 +283,9 @@ const TENANT_ID = '5894444f-4e63-44c3-8717-dc32c3a4f45c';
 const SITE_HOST = 'nortisgroup.sharepoint.com';
 const SITE_ID   = '4edac7eb-1414-4b87-a0b4-2640c98561ee';
 const FILE_SHARE_ID = 'u!IQDMMy1pUm-xQZJjNuT2Fe_GAVyVZvl2J_XGIMMPp05bbOM';
-
-const msalConfig = {
-  auth: {
-    clientId: CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
-    redirectUri: window.location.origin + window.location.pathname,
-  },
-  cache: { cacheLocation: 'sessionStorage' }
-};
-const msalInstance = new msal.PublicClientApplication(msalConfig);
 const SCOPES = ['Files.Read', 'Sites.Read.All'];
+
+let msalInstance = null;
 
 const EMPLOYEES = ['Tanapawn Jardrit','Kamonchanok Taimuang','Kantapit Chomsa','Nutchanon Luengngam','Pongtakorn Buamas','Sakkapat Dechpan'];
 const SHORT     = ['Tanapawn','Kamonchanok','Kantapit','Nutchanon','Pongtakorn','Sakkapat'];
@@ -555,21 +547,32 @@ function setStatus(type, text) {
   document.getElementById('status-text').textContent = text;
 }
 
-// Handle redirect after login
-msalInstance.initialize().then(() => {
-  msalInstance.handleRedirectPromise().then(resp => {
-    if (resp) {
-      currentAccount = resp.account;
-      showApp();
-      loadData();
-    } else {
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        currentAccount = accounts[0];
+// Init MSAL after page load
+window.addEventListener('load', () => {
+  const msalConfig = {
+    auth: {
+      clientId: CLIENT_ID,
+      authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+      redirectUri: window.location.origin + window.location.pathname,
+    },
+    cache: { cacheLocation: 'sessionStorage' }
+  };
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  msalInstance.initialize().then(() => {
+    msalInstance.handleRedirectPromise().then(resp => {
+      if (resp) {
+        currentAccount = resp.account;
         showApp();
         loadData();
+      } else {
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length > 0) {
+          currentAccount = accounts[0];
+          showApp();
+          loadData();
+        }
       }
-    }
+    });
   });
 });
 </script>
