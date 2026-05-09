@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MH Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+
 <style>
   :root {
     --bg: #0f1117;
@@ -298,6 +297,10 @@ let currentAccount = null;
 
 async function signIn() {
   try {
+    if (!msalInstance) {
+      throw new Error('กรุณารอสักครู่แล้วลองใหม่ (MSAL ยังโหลดไม่เสร็จ)');
+    }
+    await msalInstance.initialize();
     const resp = await msalInstance.loginPopup({ scopes: SCOPES });
     currentAccount = resp.account;
     showApp();
@@ -547,8 +550,8 @@ function setStatus(type, text) {
   document.getElementById('status-text').textContent = text;
 }
 
-// Init MSAL after page load
-window.addEventListener('load', () => {
+// Init MSAL - called after msal-browser.min.js finishes loading
+async function initMsal() {
   const msalConfig = {
     auth: {
       clientId: CLIENT_ID,
@@ -558,23 +561,27 @@ window.addEventListener('load', () => {
     cache: { cacheLocation: 'sessionStorage' }
   };
   msalInstance = new msal.PublicClientApplication(msalConfig);
-  msalInstance.initialize().then(() => {
-    msalInstance.handleRedirectPromise().then(resp => {
-      if (resp) {
-        currentAccount = resp.account;
+  await msalInstance.initialize();
+  try {
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp) {
+      currentAccount = resp.account;
+      showApp();
+      loadData();
+    } else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        currentAccount = accounts[0];
         showApp();
         loadData();
-      } else {
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-          currentAccount = accounts[0];
-          showApp();
-          loadData();
-        }
       }
-    });
-  });
-});
+    }
+  } catch(e) {
+    console.error('MSAL init error:', e);
+  }
+}
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" onload="initMsal()"></script>
 </body>
 </html>
