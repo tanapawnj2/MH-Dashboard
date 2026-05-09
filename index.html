@@ -179,7 +179,13 @@
     <div class="login-title">Man-Hour Dashboard</div>
     <div class="login-sub" style="text-align:center; margin-top:6px;">Nortis Group · STP Project</div>
   </div>
-  <button class="btn-login" onclick="signIn()">
+  <!-- Auto-login spinner (shown while attempting silent login) -->
+  <div id="login-checking" style="display:flex; flex-direction:column; align-items:center; gap:10px; color:var(--text2); font-size:13px;">
+    <div class="spinner"></div>
+    <span>กำลังตรวจสอบสิทธิ์...</span>
+  </div>
+  <!-- Login button (shown only if silent login fails) -->
+  <button class="btn-login" id="btn-login-ms" onclick="signIn()" style="display:none;">
     <svg viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="10" height="10" fill="#F25022"/>
       <rect x="11" width="10" height="10" fill="#7FBA00"/>
@@ -578,22 +584,41 @@ function setStatus(type, text) {
   document.getElementById('status-text').textContent = text;
 }
 
-// Handle redirect after login
-msalInstance.initialize().then(() => {
-  msalInstance.handleRedirectPromise().then(resp => {
+function showLoginButton() {
+  document.getElementById('login-checking').style.display = 'none';
+  document.getElementById('btn-login-ms').style.display = 'flex';
+}
+
+msalInstance.initialize().then(async () => {
+  try {
+    const resp = await msalInstance.handleRedirectPromise();
     if (resp) {
       currentAccount = resp.account;
       showApp();
       loadData();
-    } else {
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        currentAccount = accounts[0];
-        showApp();
-        loadData();
-      }
+      return;
     }
-  });
+  } catch { /* ignore */ }
+
+  // Try cached account first
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    currentAccount = accounts[0];
+    showApp();
+    loadData();
+    return;
+  }
+
+  // Try silent SSO (works if user already logged into Microsoft in this browser)
+  try {
+    const resp = await msalInstance.ssoSilent({ scopes: SCOPES });
+    currentAccount = resp.account;
+    showApp();
+    loadData();
+  } catch {
+    // Silent login failed — show login button
+    showLoginButton();
+  }
 });
 </script>
 </body>
