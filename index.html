@@ -584,42 +584,64 @@ function setStatus(type, text) {
   document.getElementById('status-text').textContent = text;
 }
 
+let loginButtonShown = false;
 function showLoginButton() {
-  document.getElementById('login-checking').style.display = 'none';
-  document.getElementById('btn-login-ms').style.display = 'flex';
+  if (loginButtonShown) return;
+  loginButtonShown = true;
+  const checking = document.getElementById('login-checking');
+  const btn = document.getElementById('btn-login-ms');
+  if (checking) checking.style.display = 'none';
+  if (btn) btn.style.display = 'flex';
 }
 
-msalInstance.initialize().then(async () => {
+(async () => {
+  // Safety net: if anything hangs, show login button after 4s
+  const fallbackTimer = setTimeout(() => {
+    console.warn('Auto-login timeout — showing login button');
+    showLoginButton();
+  }, 4000);
+
   try {
-    const resp = await msalInstance.handleRedirectPromise();
-    if (resp) {
-      currentAccount = resp.account;
+    await msalInstance.initialize();
+
+    // Handle redirect response (if returning from redirect login)
+    try {
+      const resp = await msalInstance.handleRedirectPromise();
+      if (resp && resp.account) {
+        clearTimeout(fallbackTimer);
+        currentAccount = resp.account;
+        showApp();
+        loadData();
+        return;
+      }
+    } catch (e) {
+      console.error('handleRedirectPromise failed:', e);
+    }
+
+    // Check for cached accounts (auto-login if user logged in before)
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      clearTimeout(fallbackTimer);
+      currentAccount = accounts[0];
       showApp();
       loadData();
       return;
     }
-  } catch { /* ignore */ }
 
-  // Try cached account first
-  const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
-    currentAccount = accounts[0];
-    showApp();
-    loadData();
-    return;
-  }
-
-  // Try silent SSO (works if user already logged into Microsoft in this browser)
-  try {
-    const resp = await msalInstance.ssoSilent({ scopes: SCOPES });
-    currentAccount = resp.account;
-    showApp();
-    loadData();
-  } catch {
-    // Silent login failed — show login button
+    // No cached account → show login button (user must click once)
+    clearTimeout(fallbackTimer);
     showLoginButton();
+  } catch (e) {
+    console.error('MSAL init failed:', e);
+    clearTimeout(fallbackTimer);
+    showLoginButton();
+    const errEl = document.getElementById('login-error');
+    if (errEl) {
+      errEl.style.display = 'block';
+      errEl.textContent = 'เริ่มต้นระบบล้มเหลว: ' + e.message;
+    }
   }
-});
+})();
 </script>
 </body>
 </html>
