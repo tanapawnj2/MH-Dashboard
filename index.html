@@ -294,13 +294,13 @@ const COLORS_A  = ['rgba(79,142,247,0.65)','rgba(45,212,160,0.65)','rgba(249,115
 let weeklyData = [], dailyData = [];
 let weeklyChart = null, dailyChart = null;
 let currentAccount = null;
+let msalReady = null; // Promise that resolves when msalInstance is ready
 
 async function signIn() {
   try {
-    if (!msalInstance) {
-      throw new Error('กรุณารอสักครู่แล้วลองใหม่ (MSAL ยังโหลดไม่เสร็จ)');
-    }
-    await msalInstance.initialize();
+    // Wait for MSAL to finish initializing (max 10s)
+    if (msalReady) await msalReady;
+    if (!msalInstance) throw new Error('MSAL โหลดไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ');
     const resp = await msalInstance.loginPopup({ scopes: SCOPES });
     currentAccount = resp.account;
     showApp();
@@ -551,7 +551,10 @@ function setStatus(type, text) {
 }
 
 // Init MSAL - called after msal-browser.min.js finishes loading
-async function initMsal() {
+function initMsal() {
+  let resolveReady;
+  msalReady = new Promise(res => { resolveReady = res; });
+  (async () => {
   const msalConfig = {
     auth: {
       clientId: CLIENT_ID,
@@ -578,7 +581,10 @@ async function initMsal() {
     }
   } catch(e) {
     console.error('MSAL init error:', e);
+  } finally {
+    resolveReady();
   }
+  })();
 }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
